@@ -1,22 +1,81 @@
-name: build
-on: [push, workflow_dispatch]
+package de.tante.tntcart;
 
-jobs:
-  build:
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: tntcart/tntcart
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '25'
-          distribution: 'microsoft'
-      - run: chmod +x ./gradlew
-      - run: ./gradlew build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Artifacts
-          path: tntcart/tntcart/build/libs/
-          
+import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.glfw.GLFW;
+
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ArrowItem;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.block.BaseRailBlock;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+
+/**
+ * Clientseitiges Makro: Flame-Bogen spannen, loslassen, Schiene und TNT-Lore setzen.
+ */
+public class TntCartClient implements ClientModInitializer {
+	private enum Phase { IDLE, DRAW, RAIL, CART }
+
+	private static final double MAX_REACH = 4.0;
+	private static final int DRAW_TICKS = 5;
+	private static final int DRAW_TIMEOUT = 80;
+
+	private KeyMapping fireKey;
+
+	private Phase phase = Phase.IDLE;
+	private int ticks;
+	private int bowSlot;
+	private int railSlot;
+	private int cartSlot;
+	private int originalSlot;
+	private BlockPos railPos;
+
+	@Override
+	public void onInitializeClient() {
+		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("tntcart", "main"));
+		fireKey = KeyMappingHelper.registerKeyMapping(
+				new KeyMapping("key.tntcart.fire", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Y, category));
+
+		ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
+	}
+
+	private void onTick(Minecraft mc) {
+		LocalPlayer player = mc.player;
+		if (player == null || mc.gameMode == null || mc.level == null) {
+			phase = Phase.IDLE;
+			return;
+		}
+
+		while (fireKey.consumeClick()) {
+			if (phase == Phase.IDLE) {
+				start(mc, player);
+			}
+		}
+
+		switch (phase) {
+			case DRAW -> {
+				ticks++;
+				mc.options.keyUse.setDown(true);
+				if (player.getTicksUsingItem() >= DRAW_TICKS) {
+					mc.options.keyUse.setDown(false);
+					mc.gameMode.releaseUsingItem(player);
+					phase = Phase.RAIL;
+				} else if (ticks > DRAW_TIMEOUT) {
+					mc.options.keyUse.setDown(false);
+					abort(player, "Bogen
