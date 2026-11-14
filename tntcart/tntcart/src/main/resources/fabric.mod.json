@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "tntcart",
+	"version": "${version}",
+	"name": "TNT Cart",
+	"description": "Ein-Tasten-Makro: Flame-Pfeil schiessen, Schiene und TNT-Loren setzen.",
+	"authors": ["Tante"],
+	"license": "ARR",
+	"icon": "assets/tntcart/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["de.tante.tntcart.TntCartClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
